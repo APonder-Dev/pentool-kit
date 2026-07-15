@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pentool"
+name = "pentool-kit"
 version = "1.0.0"
 description = "Authorized penetration-testing & self-audit toolkit (network, web, recon, vuln)"
 readme = "README.md"

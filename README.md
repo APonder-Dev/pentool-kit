@@ -40,6 +40,16 @@ pip install -e ".[dns]"
 pentool --help
 ```
 
+Once published, it is also available from PyPI and as a container image:
+
+```bash
+pip install pentool-kit                 # provides the `pentool` command
+docker run --rm ghcr.io/aponder-dev/pentool-kit scan 127.0.0.1 -p top -y
+```
+
+See [RELEASING.md](RELEASING.md) for how releases, PyPI, and the container image
+are produced.
+
 **Requirements:** Python 3.9+. The optional `dnspython` package unlocks full DNS
 record types (MX/NS/TXT/SOA/CNAME) in `recon`; without it, `recon` still resolves
 A/AAAA records.
