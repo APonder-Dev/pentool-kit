@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pentool"
+version = "1.0.0"
+description = "Authorized penetration-testing & self-audit toolkit (network, web, recon, vuln)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Anthony Ponder", email = "Anthony@aponder.dev" }]
+keywords = ["security", "pentest", "scanner", "recon", "audit"]
+
+[project.optional-dependencies]
+dns = ["dnspython>=2.4"]
+
+[project.scripts]
+pentool = "pentool.cli:main"
+
+[tool.setuptools]
+packages = ["pentool", "pentool.scanners"]

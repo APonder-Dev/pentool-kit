@@ -1,0 +1,4 @@
+# Core toolkit runs on the Python 3.9+ standard library alone.
+# The following are optional and unlock richer functionality:
+
+dnspython>=2.4    # full DNS record types in `recon` (MX/NS/TXT/SOA/CNAME)
