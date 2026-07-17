@@ -5,6 +5,18 @@ All notable changes to **pentool** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-07-17
+
+### Added
+- `CHANGELOG.md` following Keep a Changelog / SemVer, documenting all releases,
+  linked from the README.
+
+### Changed
+- `RELEASING.md`: the release checklist now includes a step to update the
+  changelog alongside the version bump.
+
+No functional changes to the toolkit.
+
 ## [1.1.1] - 2026-07-17
 
 ### Changed
@@ -48,6 +60,7 @@ No functional changes to the toolkit.
 - JSON reporting, packaging (PyPI `pentool-kit`), container image (GHCR), CI, and
   tag-triggered release automation.
 
+[1.1.2]: https://github.com/APonder-Dev/pentool-kit/releases/tag/v1.1.2
 [1.1.1]: https://github.com/APonder-Dev/pentool-kit/releases/tag/v1.1.1
 [1.1.0]: https://github.com/APonder-Dev/pentool-kit/releases/tag/v1.1.0
 [1.0.0]: https://github.com/APonder-Dev/pentool-kit/releases/tag/v1.0.0
