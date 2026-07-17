@@ -1,5 +1,12 @@
 # pentool
 
+[![CI](https://github.com/APonder-Dev/pentool-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/APonder-Dev/pentool-kit/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/pentool-kit.svg)](https://pypi.org/project/pentool-kit/)
+[![Python versions](https://img.shields.io/pypi/pyversions/pentool-kit.svg)](https://pypi.org/project/pentool-kit/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Container: GHCR](https://img.shields.io/badge/container-ghcr.io-2496ED?logo=docker&logoColor=white)](https://github.com/APonder-Dev/pentool-kit/pkgs/container/pentool-kit)
+[![Platforms](https://img.shields.io/badge/platforms-Kali%20%7C%20Windows-informational)](#install)
+
 A modular, cross-platform (**Kali Linux** and **Windows**) penetration-testing and
 self-audit toolkit written in Python. The core runs on the **standard library
 alone** — no dependencies required — so it works on a fresh Kali box or a locked-down
