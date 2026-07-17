@@ -33,16 +33,18 @@ publish, set the package visibility (public/private) under the repo's
 
 ## Cutting a release
 
-1. Bump the version in `pyproject.toml` and `pentool/__init__.py`.
-2. Commit the bump.
-3. Tag and push:
+1. Bump the version in `pyproject.toml` and `pentool/__init__.py` (keep them in sync).
+2. Update `CHANGELOG.md`: add a new `## [X.Y.Z] - YYYY-MM-DD` section describing
+   the changes, and add the matching link reference at the bottom of the file.
+3. Commit the version bump and changelog together.
+4. Tag and push (use the real version, e.g. `v1.1.2`):
 
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
    ```
 
-4. Watch the **Actions** tab. On success you get:
+5. Watch the **Actions** tab. On success you get:
    - a **GitHub Release** with auto-generated notes + `sdist`/`wheel` attached,
    - the package on **PyPI** (`pip install pentool-kit`),
    - the image on **GHCR** (`docker run ghcr.io/aponder-dev/pentool-kit ...`).
