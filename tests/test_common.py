@@ -65,3 +65,48 @@ def test_report_save(tmp_path):
     r.save(str(out))
     assert out.exists()
     assert "A 1.2.3.4" in out.read_text(encoding="utf-8")
+
+
+def _sample_report():
+    r = Report(tool="unit", target_spec="example.com")
+    r.add(Finding(target="example.com", category="tls",
+                  title="Certificate EXPIRED 3 day(s) ago", severity="critical"))
+    r.add(Finding(target="example.com", category="port",
+                  title="443/tcp open (https)", severity="info", detail="nginx"))
+    return r
+
+
+def test_markdown_export_orders_by_severity():
+    md = _sample_report().to_markdown()
+    assert "# unit report" in md
+    # critical row must appear before the info row
+    assert md.index("CRITICAL") < md.index("INFO")
+    assert "443/tcp open" in md
+
+
+def test_html_export_escapes_and_renders():
+    r = Report(tool="unit", target_spec="a<b>")
+    r.add(Finding(target="t", category="web", title="X & Y", severity="low"))
+    html = r.to_html()
+    assert "<table>" in html
+    assert "a&lt;b&gt;" in html          # target spec escaped
+    assert "X &amp; Y" in html           # finding title escaped
+
+
+def test_csv_export_has_header_and_rows():
+    csv_text = _sample_report().to_csv()
+    lines = [ln for ln in csv_text.splitlines() if ln.strip()]
+    assert lines[0] == "severity,category,target,title,detail"
+    assert len(lines) == 3
+
+
+def test_save_infers_format_from_extension(tmp_path):
+    out = tmp_path / "rep.csv"
+    _sample_report().save(str(out))
+    assert out.read_text(encoding="utf-8").startswith("severity,category")
+
+
+def test_save_explicit_format_overrides_extension(tmp_path):
+    out = tmp_path / "rep.txt"
+    _sample_report().save(str(out), fmt="md")
+    assert out.read_text(encoding="utf-8").startswith("# unit report")

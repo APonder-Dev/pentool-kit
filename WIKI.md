@@ -14,19 +14,20 @@ For a quick start see [README.md](README.md); for acceptable use see [SECURITY.m
 5. [`web` — web audit](#5-web--web-audit)
 6. [`recon` — DNS & subdomains](#6-recon--dns--subdomains)
 7. [`vuln` — fingerprint & CVE](#7-vuln--fingerprint--cve)
-8. [Report format (JSON)](#8-report-format-json)
-9. [Severity levels](#9-severity-levels)
-10. [Target & port syntax](#10-target--port-syntax)
-11. [Exit codes](#11-exit-codes)
-12. [Platform notes](#12-platform-notes-kali--windows)
-13. [Extending pentool](#13-extending-pentool)
-14. [Troubleshooting](#14-troubleshooting)
+8. [`tls` — TLS/SSL deep audit](#8-tls--tlsssl-deep-audit)
+9. [Report formats](#9-report-formats)
+10. [Severity levels](#10-severity-levels)
+11. [Target & port syntax](#11-target--port-syntax)
+12. [Exit codes](#12-exit-codes)
+13. [Platform notes](#13-platform-notes-kali--windows)
+14. [Extending pentool](#14-extending-pentool)
+15. [Troubleshooting](#15-troubleshooting)
 
 ---
 
 ## 1. Concepts
 
-`pentool` is a single CLI dispatching to four scanner modules. Each module builds a
+`pentool` is a single CLI dispatching to five scanner modules. Each module builds a
 `Report` object (a list of `Finding` records), prints a severity-sorted summary to
 the terminal, and optionally writes the full report to JSON.
 
@@ -51,7 +52,8 @@ These apply to all commands and may appear **before or after** the subcommand:
 | Flag | Description |
 |------|-------------|
 | `-y`, `--yes` | Skip the interactive authorization prompt (for labs/CI). |
-| `-o FILE`, `--output FILE` | Write the full findings report to `FILE` as JSON. |
+| `-o FILE`, `--output FILE` | Write the full findings report to `FILE`. |
+| `-f`, `--format` | Report format: `json`, `html`, `md`, `csv`. Default: inferred from the `-o` extension, else `json`. |
 | `--version` | Print version and exit. |
 | `-h`, `--help` | Show help. Works per-subcommand too (`pentool scan -h`). |
 
@@ -92,6 +94,8 @@ python pentool.py scan <target> [options]
 | `-w`, `--workers` | `200` | Concurrent connection threads. |
 | `-t`, `--timeout` | `1.0` | Per-port connection timeout in seconds. |
 | `--no-banner` | off | Skip banner grabbing (faster, quieter). |
+| `--udp` | off | Scan UDP instead of TCP. Results are `open` or `open|filtered` (UDP cannot be probed as reliably as TCP). Known services (DNS, NTP, SNMP, NetBIOS) get a protocol-specific probe payload. |
+| `--discover` | off | Run a TCP ping-sweep first and scan only hosts that are up. A host counts as "up" if a probe port accepts **or** actively refuses the connection. Greatly speeds up sparse CIDR ranges. |
 
 **Banner grabbing:** on TLS ports (443, 465, 993, 995, 8443) it negotiates TLS and
 reports the protocol version and certificate common name. On common HTTP ports it
@@ -237,7 +241,68 @@ python pentool.py vuln 10.0.0.0/24 -p 22,445,3389,6379
 
 ---
 
-## 8. Report format (JSON)
+## 8. `tls` — TLS/SSL deep audit
+
+Deep inspection of a TLS endpoint's protocol support and certificate. Standard
+library only.
+
+```bash
+python pentool.py tls <target> [options]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `target` | (required) | `host`, `host:port`, or an `https://` URL. Port defaults to 443. |
+| `-t`, `--timeout` | `6.0` | Handshake timeout in seconds. |
+
+**What it checks:**
+
+- **Protocol support:** attempts a handshake pinned to each of SSLv3, TLSv1.0,
+  TLSv1.1, TLSv1.2, TLSv1.3. Supported legacy versions are flagged — SSLv3/TLSv1.0
+  (`high`), TLSv1.1 (`medium`). Offering no modern (1.2/1.3) protocol is `high`.
+- **Certificate trust:** performs a verifying handshake and reports why it fails
+  (expired, self-signed, hostname mismatch) as `high`/`medium`.
+- **Certificate details:** subject CN, issuer, and Subject Alternative Names —
+  read even from untrusted/self-signed certs.
+- **Expiry:** days until `notAfter`. Already expired → `critical`; ≤14 days →
+  `high`; ≤30 days → `medium`; otherwise `info`.
+
+All findings use the `tls` category.
+
+Examples:
+
+```bash
+python pentool.py tls example.com
+python pentool.py tls example.com:8443 -o tls.html
+python pentool.py tls https://internal.lab
+```
+
+> Certificate parsing uses the stdlib `ssl` module. If a certificate cannot be
+> decoded on your Python build, the tool still reports protocol support and trust
+> status and degrades gracefully on the detail fields.
+
+---
+
+## 9. Report formats
+
+Any command accepts `-o FILE`. The format is chosen by `-f/--format`
+(`json`, `html`, `md`, `csv`), or inferred from the file extension, or defaults to
+JSON.
+
+| Format | Best for |
+|--------|----------|
+| `json` | Machine parsing, piping into other tools (full structured `data`). |
+| `html` | A shareable, styled, severity-colored report. |
+| `md` | Pasting into tickets, PRs, or engagement notes. |
+| `csv` | Spreadsheets and quick sorting/filtering. |
+
+```bash
+python pentool.py scan 10.0.0.0/24 --discover -o hosts.html      # inferred: html
+python pentool.py tls example.com -o cert -f md                  # explicit: markdown
+```
+
+HTML/Markdown/CSV are flat summaries (severity, category, target, title, detail).
+The **JSON** format additionally includes each finding's structured `data` object:
 
 With `-o report.json` you get:
 
@@ -271,7 +336,7 @@ With `-o report.json` you get:
 
 ---
 
-## 9. Severity levels
+## 10. Severity levels
 
 Ordered from most to least urgent in summaries:
 
@@ -282,7 +347,7 @@ Server header). They are not necessarily problems — context decides.
 
 ---
 
-## 10. Target & port syntax
+## 11. Target & port syntax
 
 **Targets** (`scan`, `vuln`) accept, comma-separated:
 
@@ -300,7 +365,7 @@ Server header). They are not necessarily problems — context decides.
 
 ---
 
-## 11. Exit codes
+## 12. Exit codes
 
 | Code | Meaning |
 |------|---------|
@@ -311,7 +376,7 @@ Server header). They are not necessarily problems — context decides.
 
 ---
 
-## 12. Platform notes (Kali & Windows)
+## 13. Platform notes (Kali & Windows)
 
 - **No privileges required.** TCP connect scanning and HTTP(S) requests work as an
   unprivileged user on both platforms — no `sudo`/Administrator, no WinPcap/Npcap.
@@ -324,7 +389,7 @@ Server header). They are not necessarily problems — context decides.
 
 ---
 
-## 13. Extending pentool
+## 14. Extending pentool
 
 To add a new scanner:
 
@@ -337,7 +402,7 @@ The `Report`/`Finding` model and the summary/JSON output are handled for you.
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|

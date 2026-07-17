@@ -20,10 +20,14 @@ Windows host without extra setup.
 
 | Command | Purpose |
 |---------|---------|
-| `scan`  | TCP connect port scan + banner grabbing (no root/admin needed) |
+| `scan`  | TCP/UDP port scan + banner grabbing, optional host discovery (no root/admin needed) |
 | `web`   | Web audit: TLS version, security headers, cookie flags, exposed sensitive paths |
 | `recon` | DNS records, reverse DNS, subdomain brute force, optional crt.sh CT logs |
 | `vuln`  | Service fingerprinting, risky-exposure flagging, optional NVD CVE lookup |
+| `tls`   | Deep TLS/SSL audit: protocol support, certificate validity, expiry, SANs |
+
+Reports export to **JSON, HTML, Markdown, or CSV** (`-f/--format`, or inferred from
+the `-o` file extension).
 
 ## Install
 
@@ -62,6 +66,15 @@ python pentool.py scan 192.168.1.10 -o report.json
 
 # Scan a whole subnet on specific ports, no banners (faster)
 python pentool.py scan 10.0.0.0/24 -p 22,80,443,3389 --no-banner
+
+# Ping-sweep a subnet first, then scan only live hosts; export an HTML report
+python pentool.py scan 10.0.0.0/24 --discover -o report.html
+
+# UDP scan common services
+python pentool.py scan 192.168.1.10 -p 53,123,161,137 --udp
+
+# Deep TLS/certificate audit
+python pentool.py tls example.com
 
 # Web security audit
 python pentool.py web https://example.com

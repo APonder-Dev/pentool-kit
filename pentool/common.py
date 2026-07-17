@@ -151,10 +151,100 @@ class Report:
         d = asdict(self)
         return d
 
-    def save(self, path: str) -> None:
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump(self.to_dict(), fh, indent=2)
-        good(f"Report written to {path}")
+    # -- serialization formats ------------------------------------------
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), indent=2)
+
+    def _sorted_findings(self) -> list[Finding]:
+        order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+        return sorted(self.findings, key=lambda x: order.get(x.severity, 9))
+
+    def to_csv(self) -> str:
+        import csv
+        import io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["severity", "category", "target", "title", "detail"])
+        for f in self._sorted_findings():
+            w.writerow([f.severity, f.category, f.target, f.title, f.detail])
+        return buf.getvalue()
+
+    def to_markdown(self) -> str:
+        lines = [
+            f"# {self.tool} report",
+            "",
+            f"- **Target:** `{self.target_spec}`",
+            f"- **Started:** {self.started}",
+            f"- **Findings:** {len(self.findings)}",
+            "",
+            "| Severity | Category | Target | Finding | Detail |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for f in self._sorted_findings():
+            detail = (f.detail or "").replace("|", "\\|").replace("\n", " ")
+            lines.append(
+                f"| {f.severity.upper()} | {f.category} | {f.target} "
+                f"| {f.title.replace('|', chr(92) + '|')} | {detail} |"
+            )
+        if not self.findings:
+            lines.append("| INFO | - | - | No findings | - |")
+        return "\n".join(lines) + "\n"
+
+    def to_html(self) -> str:
+        import html as _html
+        colors = {
+            "critical": "#7c1d1d", "high": "#b91c1c", "medium": "#b45309",
+            "low": "#1d4ed8", "info": "#4b5563",
+        }
+        rows = []
+        for f in self._sorted_findings():
+            c = colors.get(f.severity, "#4b5563")
+            rows.append(
+                f'<tr><td><span class="sev" style="background:{c}">'
+                f"{_html.escape(f.severity.upper())}</span></td>"
+                f"<td>{_html.escape(f.category)}</td>"
+                f"<td>{_html.escape(f.target)}</td>"
+                f"<td>{_html.escape(f.title)}</td>"
+                f"<td>{_html.escape(f.detail or '')}</td></tr>"
+            )
+        if not rows:
+            rows.append('<tr><td colspan="5">No findings.</td></tr>')
+        return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>{_html.escape(self.tool)} report - {_html.escape(self.target_spec)}</title>
+<style>
+ body {{ font-family: system-ui, sans-serif; margin: 2rem; color: #111; }}
+ h1 {{ margin-bottom: .2rem; }}
+ .meta {{ color: #555; margin-bottom: 1.5rem; }}
+ table {{ border-collapse: collapse; width: 100%; }}
+ th, td {{ text-align: left; padding: .5rem .7rem; border-bottom: 1px solid #eee; }}
+ th {{ background: #f7f7f8; }}
+ .sev {{ color: #fff; padding: .1rem .5rem; border-radius: .3rem; font-size: .8rem; }}
+</style></head><body>
+<h1>{_html.escape(self.tool)} report</h1>
+<div class="meta">Target: <code>{_html.escape(self.target_spec)}</code> &middot;
+ Started: {_html.escape(self.started)} &middot; {len(self.findings)} finding(s)</div>
+<table><thead><tr><th>Severity</th><th>Category</th><th>Target</th>
+<th>Finding</th><th>Detail</th></tr></thead>
+<tbody>{''.join(rows)}</tbody></table>
+</body></html>
+"""
+
+    def save(self, path: str, fmt: str | None = None) -> None:
+        """Write the report. Format is taken from `fmt`, else the file
+        extension, else JSON."""
+        if fmt is None:
+            ext = os.path.splitext(path)[1].lower().lstrip(".")
+            fmt = {"json": "json", "html": "html", "htm": "html",
+                   "md": "md", "markdown": "md", "csv": "csv"}.get(ext, "json")
+        renderer = {
+            "json": self.to_json, "html": self.to_html,
+            "md": self.to_markdown, "csv": self.to_csv,
+        }.get(fmt, self.to_json)
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(renderer())
+        good(f"Report written to {path} ({fmt})")
 
     def print_summary(self) -> None:
         order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}

@@ -14,7 +14,7 @@ import sys
 
 from . import __version__
 from .common import BANNER, err, require_authorization
-from .scanners import network, recon, vuln, web
+from .scanners import network, recon, tls_audit, vuln, web
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,9 +32,14 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("-y", "--yes", action="store_true", default=argparse.SUPPRESS,
                         help="skip the interactive authorization prompt (lab/CI use)")
     common.add_argument("-o", "--output", metavar="FILE", default=argparse.SUPPRESS,
-                        help="write full findings to a JSON report file")
+                        help="write full findings to a report file")
+    common.add_argument("-f", "--format", choices=["json", "html", "md", "csv"],
+                        default=argparse.SUPPRESS,
+                        help="report format (default: inferred from -o extension, else json)")
     p.add_argument("-y", "--yes", action="store_true", default=False, help=argparse.SUPPRESS)
     p.add_argument("-o", "--output", metavar="FILE", default=None, help=argparse.SUPPRESS)
+    p.add_argument("-f", "--format", choices=["json", "html", "md", "csv"],
+                   default=None, help=argparse.SUPPRESS)
 
     sub = p.add_subparsers(dest="command", required=True, parser_class=argparse.ArgumentParser)
 
@@ -46,6 +51,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("-w", "--workers", type=int, default=200, help="concurrent sockets")
     s.add_argument("-t", "--timeout", type=float, default=1.0, help="per-port timeout (s)")
     s.add_argument("--no-banner", action="store_true", help="skip banner grabbing")
+    s.add_argument("--udp", action="store_true",
+                   help="scan UDP instead of TCP (open|filtered results)")
+    s.add_argument("--discover", action="store_true",
+                   help="TCP ping-sweep first; only scan hosts that are up")
     s.set_defaults(func=network.run)
 
     # web -------------------------------------------------------------------
@@ -74,6 +83,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="query NVD for CVEs matching identified product versions")
     v.set_defaults(func=vuln.run)
 
+    # tls -------------------------------------------------------------------
+    tl = sub.add_parser("tls", parents=[common],
+                        help="deep TLS/SSL audit: protocols, cert validity, expiry")
+    tl.add_argument("target", help="host, host:port, or https URL (default port 443)")
+    tl.add_argument("-t", "--timeout", type=float, default=6.0, help="handshake timeout (s)")
+    tl.set_defaults(func=tls_audit.run)
+
     return p
 
 
@@ -94,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report.print_summary()
     if args.output:
-        report.save(args.output)
+        report.save(args.output, fmt=args.format)
     return 0
 
 

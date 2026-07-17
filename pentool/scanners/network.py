@@ -66,6 +66,81 @@ def _cert_cn(cert) -> str:
     return "?"
 
 
+# Small payloads that coax a reply from common UDP services.
+UDP_PAYLOADS = {
+    53: bytes.fromhex("0000010000010000000000000377777706676f6f676c6503636f6d0000010001"),
+    123: b"\x1b" + 47 * b"\0",                      # NTP client request
+    161: bytes.fromhex("302902010004067075626c6963a01c02040000000002010002"
+                       "0100300e300c06082b060102010105000500"),  # SNMP get
+    137: bytes.fromhex("a2480010000100000000000020434b41414141"
+                       "41414141414141414141414141414141414100002100010000"),  # NetBIOS
+}
+
+# Ports probed to decide whether a host is alive during discovery.
+DISCOVERY_PORTS = [443, 80, 22, 445, 3389, 53]
+
+
+def _is_alive(host: str, timeout: float) -> bool:
+    """TCP ping sweep: a host is 'alive' if any probe port either accepts the
+    connection or actively refuses it (both prove the host answered)."""
+    for port in DISCOVERY_PORTS:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except ConnectionRefusedError:
+            return True
+        except (socket.timeout, TimeoutError):
+            continue
+        except OSError:
+            continue
+    return False
+
+
+def _scan_udp_one(host: str, port: int, timeout: float) -> tuple[int, str] | None:
+    """Connected-UDP probe. Returns (port, state) for open / open|filtered;
+    None when the port is definitively closed (ICMP port-unreachable)."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(timeout)
+    try:
+        sock.connect((host, port))
+        sock.send(UDP_PAYLOADS.get(port, b"\x00"))
+        try:
+            sock.recv(1024)
+            return port, "open"
+        except (socket.timeout, TimeoutError):
+            return port, "open|filtered"
+        except (ConnectionRefusedError, ConnectionResetError):
+            return None
+    except OSError:
+        return None
+    finally:
+        sock.close()
+
+
+def scan_udp_host(host: str, ports: list[int], timeout: float, workers: int,
+                  report: Report) -> int:
+    ip = resolve_host(host) or host
+    found = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_scan_udp_one, host, p, timeout): p for p in ports}
+        for fut in as_completed(futures):
+            res = fut.result()
+            if res is None:
+                continue
+            port, state = res
+            found += 1
+            svc = _service_name(port)
+            sev = "info" if state == "open" else "info"
+            good(f"{host} ({ip}) {port}/udp {state}  {svc}")
+            report.add(Finding(
+                target=host, category="port",
+                title=f"{port}/udp {state} ({svc})", severity=sev,
+                data={"ip": ip, "port": port, "proto": "udp",
+                      "service": svc, "state": state},
+            ))
+    return found
+
+
 def _scan_one(host: str, port: int, timeout: float, banners: bool) -> tuple[int, str] | None:
     try:
         with socket.create_connection((host, port), timeout=timeout):
@@ -100,16 +175,46 @@ def scan_host(host: str, ports: list[int], timeout: float, workers: int, banners
     return open_count
 
 
+def discover_hosts(targets: list[str], timeout: float, workers: int,
+                   report: Report) -> list[str]:
+    """Return the subset of targets that respond to a TCP ping sweep."""
+    info(f"Host discovery across {len(targets)} target(s)")
+    alive: list[str] = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_is_alive, h, timeout): h for h in targets}
+        for fut in as_completed(futures):
+            host = futures[fut]
+            if fut.result():
+                alive.append(host)
+                good(f"host up: {host}")
+                report.add(Finding(host, "host", "host is up", "info",
+                                   data={"ip": resolve_host(host) or host}))
+    info(f"{len(alive)}/{len(targets)} host(s) up")
+    return alive
+
+
 def run(args) -> Report:
-    report = Report(tool="network-scan", target_spec=args.target)
+    proto = "udp" if getattr(args, "udp", False) else "tcp"
+    report = Report(tool=f"network-scan-{proto}", target_spec=args.target)
     targets = expand_targets(args.target)
     ports = parse_ports(args.ports)
-    info(f"Scanning {len(targets)} host(s) x {len(ports)} port(s), "
-         f"{args.workers} workers, {args.timeout}s timeout")
-    total_open = 0
+
+    total = 0
     with Timer() as t:
+        if getattr(args, "discover", False):
+            targets = discover_hosts(targets, args.timeout, args.workers, report)
+            if not targets:
+                info("No live hosts; nothing to scan.")
+                return report
+
+        info(f"Scanning {len(targets)} host(s) x {len(ports)} {proto} port(s), "
+             f"{args.workers} workers, {args.timeout}s timeout")
         for host in targets:
-            total_open += scan_host(host, ports, args.timeout, args.workers,
-                                    not args.no_banner, report)
-    info(f"Done in {t.elapsed:.1f}s - {total_open} open port(s) across {len(targets)} host(s)")
+            if proto == "udp":
+                total += scan_udp_host(host, ports, args.timeout, args.workers, report)
+            else:
+                total += scan_host(host, ports, args.timeout, args.workers,
+                                   not args.no_banner, report)
+    info(f"Done in {t.elapsed:.1f}s - {total} open {proto} port(s) "
+         f"across {len(targets)} host(s)")
     return report
