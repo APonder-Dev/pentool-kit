@@ -15,6 +15,7 @@ Windows host without extra setup.
 - [Modules](#modules) · [Install](#install) · [Usage](#usage) · [Reports](#reports)
 - [Design notes](#design-notes) · [Full reference → WIKI.md](WIKI.md)
 - [Security & acceptable use → SECURITY.md](SECURITY.md) · [License → LICENSE](LICENSE)
+- [Changelog → CHANGELOG.md](CHANGELOG.md)
 
 ## Modules
 
