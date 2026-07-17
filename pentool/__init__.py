@@ -3,4 +3,4 @@
 Only run this against systems you own or have explicit written permission to test.
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
